@@ -1,7 +1,7 @@
 #include "appmain.h"
 #include "ui_appmain.h"
 
-QDataStream &operator>>(QDataStream& stream, telemetry_frame val){
+QDataStream &operator>>(QDataStream& stream, telemetry_frame val){ // unused?
     stream >> val.header;
 
         stream >> val.gyro[0] >> val.gyro[1] >> val.gyro[2]
@@ -16,8 +16,8 @@ QDataStream &operator>>(QDataStream& stream, telemetry_frame val){
 
 appmain::appmain(QWidget *parent) : QMainWindow(parent), ui(new Ui::appmain){
 
-    ui->setupUi(this); // <- Qt Code
-    tmty_thr = new tmty_thread(this);
+    ui->setupUi(this); // Qt Code
+    serialthr = new sThread(this); // Create serial handler thread
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     // GUI Signal Connections
     connect(ui->portbutton, &QPushButton::released, this, &appmain::on_port_button_clicked);
@@ -28,21 +28,56 @@ appmain::appmain(QWidget *parent) : QMainWindow(parent), ui(new Ui::appmain){
     connect(ui->tmty_stop, &QPushButton::released, this, &appmain::stopTelemetry);
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     // Serial Port Signal Connections
-    connect(&activeport, &QSerialPort::readyRead, this, &appmain::handledata);
+    connect(&serialthr->activeport, &QSerialPort::readyRead, serialthr, &sThread::handledata);     //Connect Serial Port to Handler Thread
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     // Worker Thread Signal Connections
-    connect(tmty_thr, &tmty_thread::dataReady, this, &appmain::onTmtyDataReady);
+    connect(serialthr, &sThread::cfgDataReady, this, &appmain::oncfgDataReady);         //Config Struct Ready
+    connect(serialthr, &sThread::tmtyDataReady, this, &appmain::ontmtyDataReady);       //Telemetry Frame Ready
+    connect(serialthr, &sThread::ConnectionStatus, this, &appmain::onConnectionStatus); //Connection Status Changed
+
+    connect(this, &appmain::Connect, serialthr, &sThread::onConnect);                   //Start Serial Comms
+    connect(this, &appmain::Disconnect, serialthr, &sThread::onDisconnect);             //Stop Serial Comms
+    connect(this, &appmain::WriteCmd, serialthr, &sThread::onWriteCmd);
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     QDataStream rxstream(rxdata);
     listports();
     statusBar()->showMessage("Ready");
 
-
-    tmty_thr->start();
+    serialthr->start();
 }
 
-void appmain::onTmtyDataReady(int nbr){
-    qDebug() << "Worker thread tick" << nbr;
+void appmain::ontmtyDataReady(telemetry_frame tmtyframe){
+    qDebug() << "Worker thread tmty";
+    tmty_frame = tmtyframe;
+    updateTmty();
+}
+
+void appmain::oncfgDataReady(FC_cfg rxcfg){
+    qDebug() << "Worker thread cfg";
+    config = rxcfg;
+    updateUi();
+}
+
+void appmain::onConnectionStatus(cState status){
+    qDebug() << "Worker thread Connection status changed:" << status;
+    switch (status){
+
+    case con:
+        s_connected = 1;
+        statusBar()->showMessage("Connected."); // Update Status text
+        ui->portbutton->setText("Disconnect"); // Set Connect button to disconnect
+    break;
+
+    case disc:
+        s_connected = 0;
+        ui->portbutton->setText("Connect");
+        statusBar()->showMessage("Disconnected.");
+    break;
+
+    case hshake:
+        statusBar()->showMessage("Handshake Complete!");
+    break;
+    }
 }
 
 appmain::~appmain(){
@@ -60,101 +95,19 @@ void appmain::on_port_button_clicked(){
     // Connect / disconnect function
     if (!s_connected){
         auto baud = ui->baudselector->currentText(); // ffs...
-
-        activeport.setPortName(ui->ports->currentText());
-        activeport.setBaudRate(baud.toUInt());
-
-        if(activeport.open(QIODevice::ReadWrite)){
-            s_connected = 1;
-            statusBar()->showMessage("Connected."); // Update Status text
-        }
-
-        ui->portbutton->setText("Disconnect"); // Set Connect button to disconnect
-        writeCmd(CFG_MODE); // Send USB mode request
-
-    }else if (s_connected){
-        activeport.close();
-        s_connected = 0;
-        ui->portbutton->setText("Connect");
-        statusBar()->showMessage("Disconnected.");
+        emit Connect(ui->ports->currentText(), baud.toUInt());
+        emit WriteCmd(CFG_MODE); // Send USB mode request
+    } else {
+        emit Disconnect();
     }
-}
-
-void appmain::handledata(){
-
-    rxdata += activeport.readAll();
-
-    ui->textBrowser->clear();
-
-    if ((uint8_t)rxdata[rxdata.size()-1] == (uint8_t)MSG_END){
-        memcpy(&header, rxdata, sizeof(header));
-        memcpy(&footer, (uint8_t*)&rxdata+sizeof(rxdata)-2, sizeof(footer));
-        state = done;
-
-        ui->textBrowser->insertPlainText(rxdata.toHex(' '));
-    }
-
-    switch (header.cmd){
-        case HANDSHAKE:
-            statusBar()->showMessage("Handshake Complete!");
-        break;
-        // - - - - - - - - - - - - -
-        case W_EEPROM_OK:
-            statusBar()->showMessage("EEPROM Flashed!");
-        break;
-        // - - - - - - - - - - - - -
-        case W_EEPROM_ERR:
-            statusBar()->showMessage("EEPROM Flash Error!");
-        break;
-        // - - - - - - - - - - - - -
-        case CFG_DATA_FLAG:
-            memcpy(&config, (uint8_t*)&rxdata[16], sizeof(config));
-            updateUi();
-        break;
-        // - - - - - - - - - - - - -
-        case TMTY_DATA_FLAG:
-            memcpy(&tmty_frame, (uint8_t*)&rxdata[16], sizeof(tmty_frame));
-            updateTmty();
-        break;
-        // - - - - - - - - - - - - -
-        default:
-        break;
-    }
-
-    //Clear buffer
-    if (state == done){
-        rxdata.clear();
-        state = seek;
-    }
-}
-
-void appmain::writeCmd(uint8_t cmd){
-    QByteArray byte;
-    QByteArray temp;
-    msg_begin header;
-    msg_end footer;
-
-    QDataStream stream(&byte, QIODevice::WriteOnly);
-    QDataStream stream2(&temp, QIODevice::WriteOnly);
-
-    header.cmd = cmd;
-    header.length = sizeof(header)+sizeof(footer);
-
-    stream.writeRawData((const char*)&header, sizeof(header));
-    stream2.writeRawData((const char*)&footer, sizeof(footer));
-
-    byte.append(temp);
-
-    qDebug() << "Bytes Sent:" << activeport.write(byte, byte.length());
-    qDebug() << "Byte array in hex: " << byte.toHex(' ');
 }
 
 void appmain::readConfig(){
-    writeCmd(READ_CFG);
+    emit WriteCmd(READ_CFG);
 }
 
 void appmain::writeConfig(){
-    writeCmd(WRITE_CFG);
+    emit WriteCmd(WRITE_CFG);
 }
 
 void appmain::updateUi(){
@@ -193,15 +146,19 @@ void appmain::updateTmty(){
     ui->t_esc2->setText(QString::number(tmty_frame.esc2_out));
     ui->t_esc3->setText(QString::number(tmty_frame.esc3_out));
     ui->t_esc4->setText(QString::number(tmty_frame.esc4_out));
+
+    ui->targetx->setText(QString::number(tmty_frame.rx_scaled[0]));
+    ui->targety->setText(QString::number(tmty_frame.rx_scaled[1]));
+    ui->targetz->setText(QString::number(tmty_frame.rx_scaled[2]));
 }
 
-void appmain::on_reboot_btn_released(){writeCmd(RESTART_FC);}
+void appmain::on_reboot_btn_released(){emit WriteCmd(RESTART_FC);}
 
-void appmain::startTelemetry(){writeCmd(TELEMETRY_START); s_tmtydataflag = 1;}
-void appmain::stopTelemetry(){writeCmd(TELEMETRY_STOP); s_tmtydataflag = 0;}
+void appmain::startTelemetry(){emit WriteCmd(TELEMETRY_START); s_tmtydataflag = 1;}
+void appmain::stopTelemetry(){emit WriteCmd(TELEMETRY_STOP); s_tmtydataflag = 0;}
 
-void appmain::arm(){writeCmd(ARM_TETHERED);}
-void appmain::disarm(){writeCmd(DISARM);}
+void appmain::arm(){emit WriteCmd(ARM_TETHERED);}
+void appmain::disarm(){emit WriteCmd(DISARM);}
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - -
 // SLIDER BINDINGS - - - - - - - - - - - - - - - - - -

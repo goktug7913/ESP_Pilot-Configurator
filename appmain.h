@@ -10,7 +10,7 @@
 #include <Config.h>
 #include <Telemetry.h>
 #include <Message.h>
-#include <tmty_thread.h>
+#include <serialthread.h>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class appmain; }
@@ -38,7 +38,7 @@ public:
     msg_begin header;
     msg_end footer;
 
-    tmty_thread *tmty_thr = nullptr;
+    sThread *serialthr = nullptr;
 
     void listports();
     void writeCmd(uint8_t cmd);
@@ -59,14 +59,24 @@ private:
 
     Ui::appmain *ui;
     bool s_connected = 0;
-    bool s_cfgdataflag = 0;
+    //bool s_cfgdataflag = 0;
     bool s_tmtydataflag = 0;
+
+signals:
+
+    void Connect(QString, int);
+    void Disconnect();
+    void WriteCmd(uint8_t);
 
 private slots:
 
     void on_port_button_clicked();
-    void handledata();
     void on_reboot_btn_released();
+
+    void oncfgDataReady(FC_cfg);
+    void ontmtyDataReady(telemetry_frame);
+
+    void onConnectionStatus(cState status);
 
     void on_pp_slider_sliderMoved(int position);
     void on_pp_box_valueChanged(double arg1);
@@ -89,7 +99,7 @@ private slots:
     void on_yd_slider_sliderMoved(int position);
     void on_yd_box_valueChanged(double arg1);
 
-    void onTmtyDataReady(int);
+
 };
 
 #endif // APPMAIN_H

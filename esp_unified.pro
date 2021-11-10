@@ -12,7 +12,7 @@ CONFIG += c++11
 SOURCES += \
     main.cpp \
     appmain.cpp \
-    tmty_thread.cpp
+    serialthread.cpp
 
 HEADERS += \
     Config.h \
@@ -20,7 +20,7 @@ HEADERS += \
     Message.h \
     Telemetry.h \
     appmain.h \
-    tmty_thread.h
+    serialthread.h
 
 FORMS += \
     appmain.ui
