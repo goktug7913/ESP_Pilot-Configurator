@@ -10,6 +10,7 @@
 #include <Config.h>
 #include <Telemetry.h>
 #include <Message.h>
+#include <tmty_thread.h>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class appmain; }
@@ -30,6 +31,14 @@ public:
 
     FC_cfg config;
     telemetry_frame tmty_frame;
+
+    enum dState {done, reading, seek};
+    dState state = seek;
+
+    msg_begin header;
+    msg_end footer;
+
+    tmty_thread *tmty_thr = nullptr;
 
     void listports();
     void writeCmd(uint8_t cmd);
@@ -79,7 +88,8 @@ private slots:
     void on_yi_box_valueChanged(double arg1);
     void on_yd_slider_sliderMoved(int position);
     void on_yd_box_valueChanged(double arg1);
-    void on_tmty_start_clicked();
+
+    void onTmtyDataReady(int);
 };
 
 #endif // APPMAIN_H

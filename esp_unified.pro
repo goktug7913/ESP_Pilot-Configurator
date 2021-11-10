@@ -11,14 +11,16 @@ CONFIG += c++11
 
 SOURCES += \
     main.cpp \
-    appmain.cpp
+    appmain.cpp \
+    tmty_thread.cpp
 
 HEADERS += \
     Config.h \
     Definitions.h \
     Message.h \
     Telemetry.h \
-    appmain.h
+    appmain.h \
+    tmty_thread.h
 
 FORMS += \
     appmain.ui

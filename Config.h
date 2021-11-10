@@ -11,7 +11,7 @@
 const static uint8_t    pwm_ch_amt = PWM_CHANNELS_NUM;
 
 struct FC_cfg{
-  uint32_t          header = CFG_MAGIC;
+  uint32_t          header = 0; // 0xDEADBEEF
 
   //Control
   float             Kp_pitch = 5.6;
