@@ -5,11 +5,11 @@
 #define SCREEN_WIDTH       128        //OLED display width, in pixels
 #define SCREEN_HEIGHT      32         //OLED display height, in pixels
 
-#define MPU_UPSIDEDOWN     1          //Enable if MPU chip faces downward!
+#define MPU_UPSIDEDOWN     1          //Enable if MPU chip faces downward (default is facing up)
 
-#define PWM_FREQ           250        //ESC Control signal, Default: 50Hz, 100Hz for more responsiveness
-#define PWM_MIN_DUTY       1000       //ESC Minimum Pulse Width
-#define PWM_MAX_DUTY       2000       //ESC Maximum Pulse Width
+#define PWM_FREQ           250        //ESC Control signal, Default: 50Hz
+#define PWM_MIN_DUTY       1000       //ESC Minimum Pulse Width (us)
+#define PWM_MAX_DUTY       2000       //ESC Maximum Pulse Width (us)
 #define ESC_1              26         //PWM0A Pin
 #define ESC_2              25         //PWM0B Pin
 #define ESC_3              33         //PWM1A Pin
@@ -21,7 +21,7 @@
 
 #define CFG_MAGIC          0xDEADBEEF //Config Struct Header
 #define CFG_MAGIC2         0xFEEBDAED //Config Struct Footer
-#define TMTY_HEADER        151522     //Telemetry Frame Header
+#define TMTY_HEADER        0x533D     //Telemetry Frame Header
 
 #define MSG_START          0xB1       //Message Start Flag
 #define DATA_START         0xD2       //Data Start Flag
@@ -30,44 +30,47 @@
 
 #define EEPROM_START_ADDR  0          //EEPROM Data start address
 #define EEPROM_SIZE        512        //EEPROM Allocated Size in Bytes (512 Max)
-//GPIO 26 25 33 32 pwmout
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 // ------------------- SYNC ANY CHANGES WITH ESP_CONFIGURATOR APP CODE ---------------------
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //Serial Commands
 
-#define CFG_MODE          70    //Enable configurator
-#define READ_CFG          72    //Read configuration from EEPROM
-#define WRITE_CFG         73    //Write configuration to EEPROM
-#define ARM_TETHERED      76    //Arm the quad while connected for debugging/testing
-#define DISARM            77    //Disarm
-#define RESTART_FC        78    //Reboot ESP32
-#define TELEMETRY_START   91    //Request serial telemetry
-#define TELEMETRY_STOP    92    //Stop serial telemetry
+#define CFG_MODE          50    //Enable configurator
+#define READ_CFG          51    //Read configuration from EEPROM
+#define WRITE_CFG         52    //Write configuration to EEPROM
+#define ARM_TETHERED      53    //Arm the quad while connected for debugging/testing
+#define DISARM            54    //Disarm
+#define RESTART_FC        55    //Reboot ESP32
+#define TELEMETRY_START   56    //Request serial telemetry
+#define TELEMETRY_STOP    57    //Stop serial telemetry
 
 //ESP Callbacks
-#define HANDSHAKE         71    //Serial connected
-#define CFG_DATA_FLAG     80    //Indicate data is outbound
-#define TMTY_DATA_FLAG    81    //Indicate telemetry frame is outbound
-#define W_EEPROM_OK       74    //New configuration flashed succesfully
-#define W_EEPROM_ERR      75    //New configuration flash failed
+#define HANDSHAKE         58    //Serial connected
+#define SERIALPOLL        48    //ESP32 Polling for serial connection
+#define CFG_DATA_FLAG     59    //Indicate data is outbound
+#define TMTY_DATA_FLAG    60    //Indicate telemetry frame is outbound
+#define W_EEPROM_OK       61    //New configuration flashed succesfully
+#define W_EEPROM_ERR      62    //New configuration flash failed
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //PWM RC Detection RMT Perhiperal Parameters
 
+// We will use a fixed array of 6 for axis data for now
+// TODO: Add support for arbitrary number of axes and digital inputs
+
 #define RMT_TICK_PER_US   1             //determines how many clock cycles one "tick" is, [1..255] source is generally 80MHz APB clk
 #define RMT_RX_MAX_US     3500          //time before receiver goes idle (longer pulses will be ignored)
-#define PWM_CHANNELS_NUM  5             //Receiver PWM Channel Number
-#define PWM_CHANNELS      1,2,3,4,5//,6 // Change the channels according to the number of channels
+#define PWM_CHANNELS_NUM  6             //Receiver PWM Channel Number
+#define PWM_CHANNELS      1,2,3,4,5,6   // Change the channels according to the number of channels
 
-#define RECEIVER_GPIO     35,34,39,36,27//,14
-#define PWM_CENTER        1500
-#define RX_DEADZONE       0
-#define RMT_RX_CLK_DIV    (80000000/RMT_TICK_PER_US/1000000)
+#define RECEIVER_GPIO     35,34,39,36,27,14
+#define PWM_CENTER        1500          //Center of receiver PWM pulse
+#define RX_DEADZONE       2             //Deadzone for receiver PWM pulse
+#define RMT_RX_CLK_DIV    (80000000/RMT_TICK_PER_US/1000000) //Divide 80Mhz APB clk by 1Mhz to get the clock for the receiver
 
 //ch1 yaw
 //ch2 pitch
 //ch3 throttle
 //ch4 roll
-
+//ch5 arm switch 3 way
 #endif // DEFINITIONS_H

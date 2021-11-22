@@ -66,6 +66,7 @@ signals:
 
     void Connect(QString, int);
     void Disconnect();
+    void WriteCmd(uint8_t, uint8_t*);
     void WriteCmd(uint8_t);
 
 private slots:

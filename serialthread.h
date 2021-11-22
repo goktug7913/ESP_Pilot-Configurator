@@ -23,7 +23,6 @@ public:
     QSerialPort activeport;
     QByteArray rxdata;
     QByteArray msgdata;
-    QDataStream rxstream;
 
     FC_cfg config;
     telemetry_frame tmty_frame;
@@ -43,10 +42,17 @@ public slots:
     void handledata();
     void onConnect(QString name, int baud);
     void onDisconnect();
+    void onWriteCmd(uint8_t cmd, uint8_t *dataptr);
     void onWriteCmd(uint8_t cmd);
 
 private:
     int i = 0;
+
+    void data_seek();
+    void data_read();
+    void data_done();
+
+    long long startindex, dataindex, footerindex, endindex;
 };
 
 #endif // SERIALTHREAD_H

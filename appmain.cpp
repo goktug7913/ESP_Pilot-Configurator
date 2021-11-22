@@ -1,19 +1,6 @@
 #include "appmain.h"
 #include "ui_appmain.h"
 
-QDataStream &operator>>(QDataStream& stream, telemetry_frame val){ // unused?
-    stream >> val.header;
-
-        stream >> val.gyro[0] >> val.gyro[1] >> val.gyro[2]
-               >> val.accel[0] >> val.accel[1] >> val.accel[2]
-               >> val.rx_scaled[0] >> val.rx_scaled[1] >> val.rx_scaled[2]
-               >> val.rx_raw[0] >> val.rx_raw[1] >> val.rx_raw[2] >> val.rx_raw[3] >> val.rx_raw[4]
-               >> val.pid_p >> val.pid_r >> val.pid_y
-               >> val.esc1_out >> val.esc2_out >> val.esc3_out >> val.esc4_out;
-
-    return stream;
-}
-
 appmain::appmain(QWidget *parent) : QMainWindow(parent), ui(new Ui::appmain){
 
     ui->setupUi(this); // Qt Code
@@ -37,7 +24,9 @@ appmain::appmain(QWidget *parent) : QMainWindow(parent), ui(new Ui::appmain){
 
     connect(this, &appmain::Connect, serialthr, &sThread::onConnect);                   //Start Serial Comms
     connect(this, &appmain::Disconnect, serialthr, &sThread::onDisconnect);             //Stop Serial Comms
-    connect(this, &appmain::WriteCmd, serialthr, &sThread::onWriteCmd);
+
+    connect(this, SIGNAL(WriteCmd(uint8_t)), serialthr, SLOT(onWriteCmd(uint8_t))); //Write Cmd /wo Data
+    connect(this, SIGNAL(WriteCmd(uint8_t, uint8_t*)), serialthr, SLOT(onWriteCmd(uint8_t,uint8_t*))); //Write Cmd /w Data
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     QDataStream rxstream(rxdata);
     listports();
@@ -65,7 +54,7 @@ void appmain::onConnectionStatus(cState status){
     case con:
         s_connected = 1;
         statusBar()->showMessage("Connected."); // Update Status text
-        ui->portbutton->setText("Disconnect"); // Set Connect button to disconnect
+        ui->portbutton->setText("Disconnect");  // Set Connect button to disconnect
     break;
 
     case disc:
@@ -107,7 +96,35 @@ void appmain::readConfig(){
 }
 
 void appmain::writeConfig(){
-    emit WriteCmd(WRITE_CFG);
+    config.header = CFG_MAGIC;
+
+    config.Kp_pitch = ui->pp_box->value();
+    config.Ki_pitch = ui->pi_box->value();
+    config.Kd_pitch = ui->pd_box->value();
+
+    config.Kp_roll = ui->rp_box->value();
+    config.Ki_roll = ui->ri_box->value();
+    config.Kd_roll = ui->rd_box->value();
+
+    config.Kp_yaw = ui->yp_box->value();
+    config.Ki_yaw = ui->yi_box->value();
+    config.Kd_yaw = ui->yd_box->value();
+
+    config.max_angle = ui->maxangle_box->value();
+
+    config.esc1_pin = ui->esc1_pin->value();
+    config.esc2_pin = ui->esc2_pin->value();
+    config.esc3_pin = ui->esc3_pin->value();
+    config.esc4_pin = ui->esc4_pin->value();
+
+    config.esc_pwm_hz = ui->esc_freq->value();
+
+    config.nrf24_telemetry = ui->nrf_enable->isChecked();
+    config.oled_display = ui->oled_enable->isChecked();
+    config.radar_altimeter = ui->radar_enable->isChecked();
+    config.compass = ui->magnet_enable->isChecked();
+
+    emit WriteCmd(WRITE_CFG, (uint8_t*)&config);
 }
 
 void appmain::updateUi(){
@@ -134,6 +151,8 @@ void appmain::updateUi(){
 }
 
 void appmain::updateTmty(){
+    ui->deltat->setText(QString::number(tmty_frame.deltaT));
+
     ui->gyrox->setText(QString::number(tmty_frame.gyro[0]));
     ui->gyroy->setText(QString::number(tmty_frame.gyro[1]));
     ui->gyroz->setText(QString::number(tmty_frame.gyro[2]));
@@ -142,14 +161,37 @@ void appmain::updateTmty(){
     ui->accy->setText(QString::number(tmty_frame.accel[1]));
     ui->accz->setText(QString::number(tmty_frame.accel[2]));
 
-    ui->t_esc1->setText(QString::number(tmty_frame.esc1_out));
-    ui->t_esc2->setText(QString::number(tmty_frame.esc2_out));
-    ui->t_esc3->setText(QString::number(tmty_frame.esc3_out));
-    ui->t_esc4->setText(QString::number(tmty_frame.esc4_out));
+    ui->t_esc1->setText(QString::number(tmty_frame.esc1_out,10));
+    ui->t_esc2->setText(QString::number(tmty_frame.esc2_out,10));
+    ui->t_esc3->setText(QString::number(tmty_frame.esc3_out,10));
+    ui->t_esc4->setText(QString::number(tmty_frame.esc4_out,10));
 
     ui->targetx->setText(QString::number(tmty_frame.rx_scaled[0]));
     ui->targety->setText(QString::number(tmty_frame.rx_scaled[1]));
     ui->targetz->setText(QString::number(tmty_frame.rx_scaled[2]));
+
+    ui->rx1->setText(QString::number(tmty_frame.rx_raw[0]));
+    ui->rx2->setText(QString::number(tmty_frame.rx_raw[1]));
+    ui->rx3->setText(QString::number(tmty_frame.rx_raw[2]));
+    ui->rx4->setText(QString::number(tmty_frame.rx_raw[3]));
+    ui->rx5->setText(QString::number(tmty_frame.rx_raw[4]));
+    ui->rx6->setText(QString::number(tmty_frame.rx_raw[5]));
+
+    ui->pid_p->setText(QString::number(tmty_frame.pid_p));
+    ui->pid_r->setText(QString::number(tmty_frame.pid_r));
+    ui->pid_y->setText(QString::number(tmty_frame.pid_y));
+
+    ui->p_p->setText(QString::number(tmty_frame.p_p));
+    ui->p_i->setText(QString::number(tmty_frame.p_i));
+    ui->p_d->setText(QString::number(tmty_frame.p_d));
+
+    ui->r_p->setText(QString::number(tmty_frame.r_p));
+    ui->r_i->setText(QString::number(tmty_frame.r_i));
+    ui->r_d->setText(QString::number(tmty_frame.r_d));
+
+    ui->y_p->setText(QString::number(tmty_frame.y_p));
+    ui->y_i->setText(QString::number(tmty_frame.y_i));
+    ui->y_d->setText(QString::number(tmty_frame.y_d));
 }
 
 void appmain::on_reboot_btn_released(){emit WriteCmd(RESTART_FC);}
